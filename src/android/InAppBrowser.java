@@ -1236,6 +1236,9 @@ public class InAppBrowser extends CordovaPlugin {
             }
 
             // On first URL change, initiate JS callback. Only after the beforeload event, continue.
+            if (url.startsWith("intent://www.singpassmobile.sg/qrlogin/")) {
+                this.waitForBeforeload = true;
+            }
             if (useBeforeload && this.waitForBeforeload) {
                 if(sendBeforeLoad(url, method)) {
                     return true;
