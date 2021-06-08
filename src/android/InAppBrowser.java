@@ -1125,7 +1125,12 @@ public class InAppBrowser extends CordovaPlugin {
         @SuppressWarnings("deprecation")
         @Override
         public boolean shouldOverrideUrlLoading(WebView webView, String url) {
-            return shouldOverrideUrlLoading(url, null);
+            Uri uri = Uri.parse(url);
+            if(!openWithSingpassMobile(uri, webView)) {
+                return super.shouldOverrideUrlLoading(webView, url);
+            } else {
+                return shouldOverrideUrlLoading(url, null);
+            }
         }
 
         /**
@@ -1140,7 +1145,68 @@ public class InAppBrowser extends CordovaPlugin {
         @TargetApi(Build.VERSION_CODES.N)
         @Override
         public boolean shouldOverrideUrlLoading(WebView webView, WebResourceRequest request) {
-            return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
+            Uri uri = request.getUrl();
+            if(!openWithSingpassMobile(uri, webView)) {
+                return super.shouldOverrideUrlLoading(webView, request);
+            } else {
+                return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
+            }
+        }
+
+        private boolean openWithSingpassMobile(Uri uri, WebView view) {
+            LOG.d(LOG_TAG, "Testing scheme" + uri.getScheme() + "Testing url " +  uri.getHost());
+            if((uri.getScheme().equalsIgnoreCase("intent") || uri.getScheme().equalsIgnoreCase("https")) && ((uri.getHost().equalsIgnoreCase("singpassmobile.sg") || uri.getHost().equalsIgnoreCase("www.singpassmobile.sg") || uri.getHost().equalsIgnoreCase("app.singpass.gov.sg")) && uri.getPath().contains("qrlogin"))) {
+                Context context = view.getContext();
+                PackageManager packageManager = context.getPackageManager();
+
+                if(uri.getScheme().equalsIgnoreCase("intent")) {
+                    try {
+                        Intent intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME);
+                        ResolveInfo info = packageManager.resolveActivity(intent, 0);
+
+                        if(info != null) {
+                            context.startActivity(intent);
+                        } else {
+                            String fallbackUrl = intent.getStringExtra("browser_fallback_url");
+                            view.loadUrl(fallbackUrl);
+                        }
+                    }
+
+                    catch (URISyntaxException e) {
+                        view.loadUrl("https://singpassmobile.sg/qrlogin");
+                    }
+                }
+
+                else {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                    if(packageManager.resolveActivity(intent, 0) != null ) {
+                        List<ResolveInfo> list = packageManager.queryIntentActivities(intent, 0);
+                        boolean spmInstalled = false;
+
+                        for (ResolveInfo info : list) {
+                            if(info.activityInfo.packageName.equalsIgnoreCase("sg.ndi.sp")) {
+                                spmInstalled = true;
+                                break;
+                            }
+                        }
+
+                        if(spmInstalled) {
+                            intent.setPackage("sg.ndi.sp");
+                            context.startActivity(intent);
+                        }
+                        else {
+                            view.loadUrl("https://singpassmobile.sg/qrlogin");
+                        }
+                    }
+                    else {
+                        view.loadUrl("https://singpassmobile.sg/qrlogin");
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
         }
 
         /**
