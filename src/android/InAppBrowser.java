@@ -77,6 +77,7 @@ import org.json.JSONObject;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -147,6 +148,8 @@ public class InAppBrowser extends CordovaPlugin {
     private boolean fullscreen = true;
     private String[] allowedSchemes;
     private InAppBrowserClient currentClient;
+
+    private boolean disableBackButton = false;
 
     /**
      * Executes the request and returns PluginResult.
@@ -575,6 +578,10 @@ public class InAppBrowser extends CordovaPlugin {
      */
     public boolean hardwareBack() {
         return hadwareBackButton;
+    }
+
+    public boolean disableBack() {
+        return disableBackButton;
     }
 
     /**
@@ -1461,25 +1468,25 @@ public class InAppBrowser extends CordovaPlugin {
                 obj.put("sslerror", error.getPrimaryError());
                 String message;
                 switch (error.getPrimaryError()) {
-                case SslError.SSL_DATE_INVALID:
-                    message = "The date of the certificate is invalid";
-                    break;
-                case SslError.SSL_EXPIRED:
-                    message = "The certificate has expired";
-                    break;
-                case SslError.SSL_IDMISMATCH:
-                    message = "Hostname mismatch";
-                    break;
-                default:
-                case SslError.SSL_INVALID:
-                    message = "A generic error occurred";
-                    break;
-                case SslError.SSL_NOTYETVALID:
-                    message = "The certificate is not yet valid";
-                    break;
-                case SslError.SSL_UNTRUSTED:
-                    message = "The certificate authority is not trusted";
-                    break;
+                    case SslError.SSL_DATE_INVALID:
+                        message = "The date of the certificate is invalid";
+                        break;
+                    case SslError.SSL_EXPIRED:
+                        message = "The certificate has expired";
+                        break;
+                    case SslError.SSL_IDMISMATCH:
+                        message = "Hostname mismatch";
+                        break;
+                    default:
+                    case SslError.SSL_INVALID:
+                        message = "A generic error occurred";
+                        break;
+                    case SslError.SSL_NOTYETVALID:
+                        message = "The certificate is not yet valid";
+                        break;
+                    case SslError.SSL_UNTRUSTED:
+                        message = "The certificate authority is not trusted";
+                        break;
                 }
                 obj.put("message", message);
 
