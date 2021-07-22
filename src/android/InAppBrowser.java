@@ -77,6 +77,7 @@ import org.json.JSONObject;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -998,7 +999,7 @@ public class InAppBrowser extends CordovaPlugin {
                 inAppWebView.getSettings().setUseWideViewPort(useWideViewPort);
                 // Multiple Windows set to true to mitigate Chromium security bug.
                 //  See: https://bugs.chromium.org/p/chromium/issues/detail?id=1083819
-                // inAppWebView.getSettings().setSupportMultipleWindows(true);
+//                inAppWebView.getSettings().setSupportMultipleWindows(true);
                 inAppWebView.requestFocus();
                 inAppWebView.requestFocusFromTouch();
 
@@ -1125,7 +1126,12 @@ public class InAppBrowser extends CordovaPlugin {
         @SuppressWarnings("deprecation")
         @Override
         public boolean shouldOverrideUrlLoading(WebView webView, String url) {
-            return shouldOverrideUrlLoading(url, null);
+            Uri uri = Uri.parse(url);
+            if(!openWithSingpassMobile(uri, webView)) {
+                return super.shouldOverrideUrlLoading(webView, url);
+            } else {
+                return shouldOverrideUrlLoading(url, null);
+            }
         }
 
         /**
@@ -1140,8 +1146,71 @@ public class InAppBrowser extends CordovaPlugin {
         @TargetApi(Build.VERSION_CODES.N)
         @Override
         public boolean shouldOverrideUrlLoading(WebView webView, WebResourceRequest request) {
-            return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
+            Uri uri = request.getUrl();
+            if(!openWithSingpassMobile(uri, webView)) {
+                return super.shouldOverrideUrlLoading(webView, request);
+            } else {
+                return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
+            }
+
         }
+
+        private boolean openWithSingpassMobile(Uri uri, WebView view) {
+            LOG.d(LOG_TAG, "Testing scheme" + uri.getScheme() + "Testing url " +  uri.getHost());
+            if((uri.getScheme().equalsIgnoreCase("intent") || uri.getScheme().equalsIgnoreCase("https")) && ((uri.getHost().equalsIgnoreCase("singpassmobile.sg") || uri.getHost().equalsIgnoreCase("www.singpassmobile.sg") || uri.getHost().equalsIgnoreCase("app.singpass.gov.sg")) && uri.getPath().contains("qrlogin"))) {
+                Context context = view.getContext();
+                PackageManager packageManager = context.getPackageManager();
+
+                if(uri.getScheme().equalsIgnoreCase("intent")) {
+                    try {
+                        Intent intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME);
+                        ResolveInfo info = packageManager.resolveActivity(intent, 0);
+
+                        if(info != null) {
+                            context.startActivity(intent);
+                        } else {
+                            String fallbackUrl = intent.getStringExtra("browser_fallback_url");
+                            view.loadUrl(fallbackUrl);
+                        }
+                    }
+
+                    catch (URISyntaxException e) {
+                        view.loadUrl("https://singpassmobile.sg/qrlogin");
+                    }
+                }
+
+                else {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                    if(packageManager.resolveActivity(intent, 0) != null ) {
+                        List<ResolveInfo> list = packageManager.queryIntentActivities(intent, 0);
+                        boolean spmInstalled = false;
+
+                        for (ResolveInfo info : list) {
+                            if(info.activityInfo.packageName.equalsIgnoreCase("sg.ndi.sp")) {
+                                spmInstalled = true;
+                                break;
+                            }
+                        }
+
+                        if(spmInstalled) {
+                            intent.setPackage("sg.ndi.sp");
+                            context.startActivity(intent);
+                        }
+                        else {
+                            view.loadUrl("https://singpassmobile.sg/qrlogin");
+                        }
+                    }
+                    else {
+                        view.loadUrl("https://singpassmobile.sg/qrlogin");
+                    }
+                }
+
+                return true;
+            }
+
+            return false;
+        }
+
 
         /**
          * Override the URL that should be loaded
@@ -1383,7 +1452,6 @@ public class InAppBrowser extends CordovaPlugin {
 
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-
             // super.onReceivedSslError(view, handler, error);
             // try {
             //     JSONObject obj = new JSONObject();
@@ -1393,25 +1461,25 @@ public class InAppBrowser extends CordovaPlugin {
             //     obj.put("sslerror", error.getPrimaryError());
             //     String message;
             //     switch (error.getPrimaryError()) {
-            //     case SslError.SSL_DATE_INVALID:
-            //         message = "The date of the certificate is invalid";
-            //         break;
-            //     case SslError.SSL_EXPIRED:
-            //         message = "The certificate has expired";
-            //         break;
-            //     case SslError.SSL_IDMISMATCH:
-            //         message = "Hostname mismatch";
-            //         break;
-            //     default:
-            //     case SslError.SSL_INVALID:
-            //         message = "A generic error occurred";
-            //         break;
-            //     case SslError.SSL_NOTYETVALID:
-            //         message = "The certificate is not yet valid";
-            //         break;
-            //     case SslError.SSL_UNTRUSTED:
-            //         message = "The certificate authority is not trusted";
-            //         break;
+            //         case SslError.SSL_DATE_INVALID:
+            //             message = "The date of the certificate is invalid";
+            //             break;
+            //         case SslError.SSL_EXPIRED:
+            //             message = "The certificate has expired";
+            //             break;
+            //         case SslError.SSL_IDMISMATCH:
+            //             message = "Hostname mismatch";
+            //             break;
+            //         default:
+            //         case SslError.SSL_INVALID:
+            //             message = "A generic error occurred";
+            //             break;
+            //         case SslError.SSL_NOTYETVALID:
+            //             message = "The certificate is not yet valid";
+            //             break;
+            //         case SslError.SSL_UNTRUSTED:
+            //             message = "The certificate authority is not trusted";
+            //             break;
             //     }
             //     obj.put("message", message);
 
@@ -1419,7 +1487,6 @@ public class InAppBrowser extends CordovaPlugin {
             // } catch (JSONException ex) {
             //     LOG.d(LOG_TAG, "Should never happen");
             // }
-            // handler.cancel();
             handler.proceed();
         }
 
