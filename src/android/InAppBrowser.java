@@ -45,6 +45,7 @@ import android.view.WindowManager.LayoutParams;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.CookieManager;
+import android.webkit.DownloadListener;
 import android.webkit.HttpAuthHandler;
 import android.webkit.JavascriptInterface;
 import android.webkit.SslErrorHandler;
@@ -601,6 +602,17 @@ public class InAppBrowser extends CordovaPlugin {
         } else {
             this.inAppWebView.loadUrl(url);
         }
+
+        this.inAppWebView.setDownloadListener(new DownloadListener() {
+            public void onDownloadStart(String url, String userAgent,
+                                        String contentDisposition, String mimetype,
+                                        long contentLength) {
+                Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setData(Uri.parse(url));
+                cordova.getActivity().startActivity(i);
+            }
+        });
+
         this.inAppWebView.requestFocus();
     }
 
@@ -971,7 +983,7 @@ public class InAppBrowser extends CordovaPlugin {
                     settings.setUserAgentString(overrideUserAgent);
                 }
                 if (appendUserAgent != null) {
-                    settings.setUserAgentString(settings.getUserAgentString() + " " + appendUserAgent);
+                    settings.setUserAgentString(settings.getUserAgentString() + appendUserAgent);
                 }
 
                 //Toggle whether this is enabled or not!
@@ -992,7 +1004,15 @@ public class InAppBrowser extends CordovaPlugin {
 
                 // Enable Thirdparty Cookies
                 CookieManager.getInstance().setAcceptThirdPartyCookies(inAppWebView,true);
-
+                inAppWebView.setDownloadListener(new DownloadListener() {
+                    public void onDownloadStart(String url, String userAgent,
+                                                String contentDisposition, String mimetype,
+                                                long contentLength) {
+                        Intent i = new Intent(Intent.ACTION_VIEW);
+                        i.setData(Uri.parse(url));
+                        cordova.getActivity().startActivity(i);
+                    }
+                });
                 inAppWebView.loadUrl(url);
                 inAppWebView.setId(Integer.valueOf(6));
                 inAppWebView.getSettings().setLoadWithOverviewMode(true);
@@ -1128,10 +1148,12 @@ public class InAppBrowser extends CordovaPlugin {
         public boolean shouldOverrideUrlLoading(WebView webView, String url) {
             Uri uri = Uri.parse(url);
             if(!openWithSingpassMobile(uri, webView)) {
-                return super.shouldOverrideUrlLoading(webView, url);
-            } else {
-                return shouldOverrideUrlLoading(url, null);
+                LOG.d(LOG_TAG, "Testing shouldOverrideUrlLoading 1" + uri.getScheme() + "Testing url " +  uri.getHost());
+                if (uri.getHost().contains("singpass")) {
+                    return super.shouldOverrideUrlLoading(webView, url);
+                }
             }
+            return shouldOverrideUrlLoading(url, null);
         }
 
         /**
@@ -1148,16 +1170,18 @@ public class InAppBrowser extends CordovaPlugin {
         public boolean shouldOverrideUrlLoading(WebView webView, WebResourceRequest request) {
             Uri uri = request.getUrl();
             if(!openWithSingpassMobile(uri, webView)) {
-                return super.shouldOverrideUrlLoading(webView, request);
-            } else {
-                return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
+                LOG.d(LOG_TAG, "Testing shouldOverrideUrlLoading 2" + uri.getScheme() + "Testing url " +  uri.getHost());
+                if (uri.getHost().contains("singpass")) {
+                    return super.shouldOverrideUrlLoading(webView, request);
+                }
             }
+            return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
 
         }
 
         private boolean openWithSingpassMobile(Uri uri, WebView view) {
             LOG.d(LOG_TAG, "Testing scheme" + uri.getScheme() + "Testing url " +  uri.getHost());
-            if((uri.getScheme().equalsIgnoreCase("intent") || uri.getScheme().equalsIgnoreCase("https")) && ((uri.getHost().equalsIgnoreCase("singpassmobile.sg") || uri.getHost().equalsIgnoreCase("www.singpassmobile.sg") || uri.getHost().equalsIgnoreCase("app.singpass.gov.sg")) && uri.getPath().contains("qrlogin"))) {
+            if((uri.getScheme().equalsIgnoreCase("intent") && (uri.getHost().contains("singpass") && uri.getPath().contains("qrlogin")))) {
                 Context context = view.getContext();
                 PackageManager packageManager = context.getPackageManager();
 
@@ -1210,7 +1234,6 @@ public class InAppBrowser extends CordovaPlugin {
 
             return false;
         }
-
 
         /**
          * Override the URL that should be loaded
@@ -1452,41 +1475,42 @@ public class InAppBrowser extends CordovaPlugin {
 
         @Override
         public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-            // super.onReceivedSslError(view, handler, error);
-            // try {
-            //     JSONObject obj = new JSONObject();
-            //     obj.put("type", LOAD_ERROR_EVENT);
-            //     obj.put("url", error.getUrl());
-            //     obj.put("code", 0);
-            //     obj.put("sslerror", error.getPrimaryError());
-            //     String message;
-            //     switch (error.getPrimaryError()) {
-            //         case SslError.SSL_DATE_INVALID:
-            //             message = "The date of the certificate is invalid";
-            //             break;
-            //         case SslError.SSL_EXPIRED:
-            //             message = "The certificate has expired";
-            //             break;
-            //         case SslError.SSL_IDMISMATCH:
-            //             message = "Hostname mismatch";
-            //             break;
-            //         default:
-            //         case SslError.SSL_INVALID:
-            //             message = "A generic error occurred";
-            //             break;
-            //         case SslError.SSL_NOTYETVALID:
-            //             message = "The certificate is not yet valid";
-            //             break;
-            //         case SslError.SSL_UNTRUSTED:
-            //             message = "The certificate authority is not trusted";
-            //             break;
-            //     }
-            //     obj.put("message", message);
-
-            //     sendUpdate(obj, true, PluginResult.Status.ERROR);
-            // } catch (JSONException ex) {
-            //     LOG.d(LOG_TAG, "Should never happen");
-            // }
+//            super.onReceivedSslError(view, handler, error);
+//            try {
+//                JSONObject obj = new JSONObject();
+//                obj.put("type", LOAD_ERROR_EVENT);
+//                obj.put("url", error.getUrl());
+//                obj.put("code", 0);
+//                obj.put("sslerror", error.getPrimaryError());
+//                String message;
+//                switch (error.getPrimaryError()) {
+//                case SslError.SSL_DATE_INVALID:
+//                    message = "The date of the certificate is invalid";
+//                    break;
+//                case SslError.SSL_EXPIRED:
+//                    message = "The certificate has expired";
+//                    break;
+//                case SslError.SSL_IDMISMATCH:
+//                    message = "Hostname mismatch";
+//                    break;
+//                default:
+//                case SslError.SSL_INVALID:
+//                    message = "A generic error occurred";
+//                    break;
+//                case SslError.SSL_NOTYETVALID:
+//                    message = "The certificate is not yet valid";
+//                    break;
+//                case SslError.SSL_UNTRUSTED:
+//                    message = "The certificate authority is not trusted";
+//                    break;
+//                }
+//                obj.put("message", message);
+//
+//                sendUpdate(obj, true, PluginResult.Status.ERROR);
+//            } catch (JSONException ex) {
+//                LOG.d(LOG_TAG, "Should never happen");
+//            }
+//            handler.cancel();
             handler.proceed();
         }
 
