@@ -63,6 +63,10 @@ import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.RequiresApi;
+
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.Config;
 import org.apache.cordova.CordovaArgs;
@@ -79,11 +83,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.HashMap;
 import java.util.StringTokenizer;
+
+import sg.ndi.sp.webview.SingpassWebViewClient;
+import sg.ndi.sp.webview.utility.UrlHandler;
 
 @SuppressLint("SetJavaScriptEnabled")
 public class InAppBrowser extends CordovaPlugin {
@@ -1009,6 +1017,7 @@ public class InAppBrowser extends CordovaPlugin {
                                                 String contentDisposition, String mimetype,
                                                 long contentLength) {
                         Intent i = new Intent(Intent.ACTION_VIEW);
+//                        i.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         i.setData(Uri.parse(url));
                         cordova.getActivity().startActivity(i);
                     }
@@ -1147,13 +1156,13 @@ public class InAppBrowser extends CordovaPlugin {
         @Override
         public boolean shouldOverrideUrlLoading(WebView webView, String url) {
             Uri uri = Uri.parse(url);
-            if(!openWithSingpassMobile(uri, webView)) {
-                LOG.d(LOG_TAG, "Testing shouldOverrideUrlLoading 1" + uri.getScheme() + "Testing url " +  uri.getHost());
-                if (uri.getHost().contains("singpass")) {
-                    return super.shouldOverrideUrlLoading(webView, url);
-                }
+            if(openWithSingpassMobile(uri, webView)) {
+                return true;
+            } else if(url.contains("epay") || url.contains(".pdf")) {
+                return super.shouldOverrideUrlLoading(webView, url);
+            } else {
+                return shouldOverrideUrlLoading(url, null);
             }
-            return shouldOverrideUrlLoading(url, null);
         }
 
         /**
@@ -1169,72 +1178,19 @@ public class InAppBrowser extends CordovaPlugin {
         @Override
         public boolean shouldOverrideUrlLoading(WebView webView, WebResourceRequest request) {
             Uri uri = request.getUrl();
-            if(!openWithSingpassMobile(uri, webView)) {
-                LOG.d(LOG_TAG, "Testing shouldOverrideUrlLoading 2" + uri.getScheme() + "Testing url " +  uri.getHost());
-                if (uri.getHost().contains("singpass")) {
-                    return super.shouldOverrideUrlLoading(webView, request);
-                }
+            if(openWithSingpassMobile(uri, webView)) {
+                return true;
+            } else if(request.getUrl().toString().contains("epay") || request.getUrl().toString().contains(".pdf")) {
+                return super.shouldOverrideUrlLoading(webView, request);
             }
-            return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
-
+            else {
+                return shouldOverrideUrlLoading(request.getUrl().toString(), request.getMethod());
+            }
         }
 
         private boolean openWithSingpassMobile(Uri uri, WebView view) {
-            LOG.d(LOG_TAG, "Testing scheme" + uri.getScheme() + "Testing url " +  uri.getHost());
-            if((uri.getScheme().equalsIgnoreCase("intent") && (uri.getHost().contains("singpass") && uri.getPath().contains("qrlogin")))) {
-                Context context = view.getContext();
-                PackageManager packageManager = context.getPackageManager();
-
-                if(uri.getScheme().equalsIgnoreCase("intent")) {
-                    try {
-                        Intent intent = Intent.parseUri(uri.toString(), Intent.URI_INTENT_SCHEME);
-                        ResolveInfo info = packageManager.resolveActivity(intent, 0);
-
-                        if(info != null) {
-                            context.startActivity(intent);
-                        } else {
-                            String fallbackUrl = intent.getStringExtra("browser_fallback_url");
-                            view.loadUrl(fallbackUrl);
-                        }
-                    }
-
-                    catch (URISyntaxException e) {
-                        view.loadUrl("https://singpassmobile.sg/qrlogin");
-                    }
-                }
-
-                else {
-                    Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-                    if(packageManager.resolveActivity(intent, 0) != null ) {
-                        List<ResolveInfo> list = packageManager.queryIntentActivities(intent, 0);
-                        boolean spmInstalled = false;
-
-                        for (ResolveInfo info : list) {
-                            if(info.activityInfo.packageName.equalsIgnoreCase("sg.ndi.sp")) {
-                                spmInstalled = true;
-                                break;
-                            }
-                        }
-
-                        if(spmInstalled) {
-                            intent.setPackage("sg.ndi.sp");
-                            context.startActivity(intent);
-                        }
-                        else {
-                            view.loadUrl("https://singpassmobile.sg/qrlogin");
-                        }
-                    }
-                    else {
-                        view.loadUrl("https://singpassmobile.sg/qrlogin");
-                    }
-                }
-
-                return true;
-            }
-
-            return false;
+            return UrlHandler.INSTANCE.handleableBySingpassApp(uri, view);
         }
-
         /**
          * Override the URL that should be loaded
          *
@@ -1512,6 +1468,7 @@ public class InAppBrowser extends CordovaPlugin {
 //            }
 //            handler.cancel();
             handler.proceed();
+            return;
         }
 
         /**
